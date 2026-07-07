@@ -645,7 +645,10 @@ function renderCandidateList(){
       <td>${info.examinateur||'—'}</td>
       <td>${info.date||'—'}</td>
       <td class="mono">${nAnswered}/240</td>
-      <td><button class="btn ghost" onclick="viewReport(${i})">Voir le rapport →</button></td>
+      <td style="white-space:nowrap;">
+        <button class="btn ghost" onclick="downloadCandidateReportPDF(${i}, event)">Télécharger le rapport (PDF)</button>
+        <button class="btn ghost" onclick="viewReport(${i})" style="margin-left:4px;">Aperçu à l'écran</button>
+      </td>
     </tr>`;
   });
   html += `</tbody></table></div>`;
@@ -682,7 +685,42 @@ function viewReport(i){
   goTo("adminReport");
 }
 
-function buildReportBodyHTML(info, res){
+async function downloadCandidateReportPDF(i, evt){
+  const btn = evt.target;
+  const originalText = btn.textContent;
+  btn.textContent = "Génération…";
+  btn.disabled = true;
+  try{
+    const c = candidatesDB[i];
+    const res = computeResults(c.answers);
+    const chartIds = {domain:"pdfDomainChart", facet:"pdfFacetChart"};
+    let hidden = document.getElementById("pdfHiddenContainer");
+    if(!hidden){
+      hidden = document.createElement("div");
+      hidden.id = "pdfHiddenContainer";
+      hidden.style.position = "fixed";
+      hidden.style.left = "-9999px";
+      hidden.style.top = "0";
+      hidden.style.width = "900px";
+      hidden.style.background = "#ffffff";
+      hidden.style.padding = "24px";
+      document.body.appendChild(hidden);
+    }
+    hidden.innerHTML = buildReportBodyHTML(c.info, res, chartIds);
+    createReportCharts(res, chartIds);
+    // laisser le temps aux graphiques Chart.js de se dessiner avant la capture
+    await new Promise(r=>setTimeout(r, 350));
+    await generatePDFFromElement(hidden, c.info.nom||"candidat");
+  }catch(e){
+    alert("La génération du PDF a échoué : "+e.message);
+  }finally{
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
+}
+
+function buildReportBodyHTML(info, res, chartIds){
+  chartIds = chartIds || {domain:"domainChart", facet:"facetChart"};
   const uniqueFacets = FACET_ORDER.filter((v,idx,a)=>a.indexOf(v)===idx);
   let html = `
     <h2>Rapport NEO PI-R</h2>
@@ -696,14 +734,14 @@ function buildReportBodyHTML(info, res){
     html += `<div class="alert warn">Une série de ${res.longestRun} réponses identiques consécutives a été détectée : la validité des réponses (attention portée au questionnaire) devrait être vérifiée avant interprétation.</div>`;
   }
   html += `<div class="alert info">Les scores bruts sont classés ici selon des seuils indicatifs (quintiles de l'échelle), <strong>et non selon un étalonnage normatif officiel</strong> (notes T par sexe). Pour une interprétation normée, reportez ces scores bruts sur la feuille de profil officielle du NEO PI-R.</div>`;
-  html += `<h3>Profil des 5 dimensions</h3><canvas id="domainChart" height="120"></canvas>`;
+  html += `<h3>Profil des 5 dimensions</h3><canvas id="${chartIds.domain}" height="120"></canvas>`;
   html += `<table class="report-table" style="margin-top:16px;"><thead><tr><th>Dimension</th><th>Score brut (/192)</th><th>Niveau</th></tr></thead><tbody>`;
   ["N","E","O","A","C"].forEach(d=>{
     const b = bandIndex(res.domainRaw[d],192);
     html += `<tr><td>${DOMAIN_INFO[d].name} (${d})</td><td class="mono">${res.domainRaw[d]}</td><td><span class="band-chip" style="background:${BAND_COLORS[b]}">${BAND_LABELS[b]}</span></td></tr>`;
   });
   html += `</tbody></table>`;
-  html += `<h3 style="margin-top:28px;">Profil des 30 facettes</h3><canvas id="facetChart" height="140"></canvas>`;
+  html += `<h3 style="margin-top:28px;">Profil des 30 facettes</h3><canvas id="${chartIds.facet}" height="140"></canvas>`;
   html += `<h3 style="margin-top:28px;">Synthèse par dimension</h3>`;
   ["N","E","O","A","C"].forEach(d=>{
     const b = bandIndex(res.domainRaw[d],192);
@@ -728,9 +766,10 @@ function buildReportBodyHTML(info, res){
   return html;
 }
 
-function createReportCharts(res){
+function createReportCharts(res, chartIds){
+  chartIds = chartIds || {domain:"domainChart", facet:"facetChart"};
   const uniqueFacets = FACET_ORDER.filter((v,idx,a)=>a.indexOf(v)===idx);
-  const domainCtx = document.getElementById("domainChart").getContext("2d");
+  const domainCtx = document.getElementById(chartIds.domain).getContext("2d");
   new Chart(domainCtx, {
     type:"bar",
     data:{ labels:["N","E","O","A","C"],
@@ -738,7 +777,7 @@ function createReportCharts(res){
         backgroundColor:["N","E","O","A","C"].map(d=>DOMAIN_INFO[d].color), borderRadius:6 }]},
     options:{ plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true, max:192 } } }
   });
-  const facetCtx = document.getElementById("facetChart").getContext("2d");
+  const facetCtx = document.getElementById(chartIds.facet).getContext("2d");
   new Chart(facetCtx, {
     type:"bar",
     data:{ labels: uniqueFacets,
@@ -761,6 +800,28 @@ function renderReport(info, res){
   createReportCharts(res);
 }
 
+async function generatePDFFromElement(el, filenameBase){
+  const canvas = await html2canvas(el, { scale: 2, backgroundColor: "#ffffff" });
+  const imgData = canvas.toDataURL("image/png");
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF("p", "mm", "a4");
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const imgWidth = pageWidth;
+  const imgHeight = canvas.height * imgWidth / canvas.width;
+  let heightLeft = imgHeight;
+  let position = 0;
+  pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+  heightLeft -= pageHeight;
+  while(heightLeft > 0){
+    position = heightLeft - imgHeight;
+    pdf.addPage();
+    pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+    heightLeft -= pageHeight;
+  }
+  pdf.save("rapport-neo-pir-"+filenameBase+".pdf");
+}
+
 async function downloadReportPDF(evt){
   const el = document.getElementById("reportPrintArea");
   const btn = evt.target;
@@ -768,26 +829,8 @@ async function downloadReportPDF(evt){
   btn.textContent = "Génération du PDF…";
   btn.disabled = true;
   try{
-    const canvas = await html2canvas(el, { scale: 2, backgroundColor: "#ffffff" });
-    const imgData = canvas.toDataURL("image/png");
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF("p", "mm", "a4");
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    const imgWidth = pageWidth;
-    const imgHeight = canvas.height * imgWidth / canvas.width;
-    let heightLeft = imgHeight;
-    let position = 0;
-    pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-    heightLeft -= pageHeight;
-    while(heightLeft > 0){
-      position = heightLeft - imgHeight;
-      pdf.addPage();
-      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
-    }
     const name = currentReportInfo ? (currentReportInfo.nom||"candidat") : "candidat";
-    pdf.save("rapport-neo-pir-"+name+".pdf");
+    await generatePDFFromElement(el, name);
   }catch(e){
     alert("La génération du PDF a échoué : "+e.message);
   }finally{
