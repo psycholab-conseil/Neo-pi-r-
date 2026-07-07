@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEO PI-R — Plateforme d'évaluation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<style>
+  :root{
+    --ink:#232C4B;
+    --ink-soft:#4A5578;
+    --paper:#EEF1EE;
+    --card:#FFFFFF;
+    --line:#DADFE0;
+    --teal:#3C7A6B;
+    --teal-dark:#2A574C;
+    --rose:#B85C5C;
+    --amber:#D8A24A;
+    --sage:#3F9C7A;
+    --blue:#4472CA;
+    --plum:#7B5EA7;
+    --radius:12px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:'Inter',sans-serif; line-height:1.55;
+  }
+  h1,h2,h3,h4{ font-family:'Fraunces',serif; font-weight:600; color:var(--ink); margin:0 0 .4em; }
+  .mono{ font-family:'IBM Plex Mono',monospace; }
+  .app-header{
+    background:var(--ink); color:#fff; padding:18px 28px;
+    display:flex; align-items:center; justify-content:space-between;
+    position:sticky; top:0; z-index:20;
+  }
+  .app-header .brand{ display:flex; align-items:baseline; gap:10px; }
+  .app-header .brand h1{ color:#fff; font-size:1.25rem; margin:0; letter-spacing:.02em; }
+  .app-header .brand span{ font-family:'IBM Plex Mono',monospace; font-size:.72rem; color:#B9C2D6; letter-spacing:.08em; text-transform:uppercase;}
+  .app-header .mode-tag{ font-family:'IBM Plex Mono',monospace; font-size:.75rem; background:rgba(255,255,255,.12); padding:5px 12px; border-radius:20px; }
+  main{ max-width:960px; margin:0 auto; padding:32px 20px 80px; }
+  .hidden{ display:none !important; }
+  .card{
+    background:var(--card); border-radius:var(--radius); padding:28px 32px;
+    box-shadow:0 1px 2px rgba(35,44,75,.06), 0 8px 24px rgba(35,44,75,.06);
+    margin-bottom:24px; border:1px solid var(--line);
+  }
+  .lede{ color:var(--ink-soft); font-size:.98rem; }
+  .btn{
+    font-family:'Inter',sans-serif; font-weight:600; font-size:.92rem;
+    border:none; border-radius:8px; padding:11px 20px; cursor:pointer;
+    background:var(--teal); color:#fff; transition:background .15s ease, transform .1s ease;
+  }
+  .btn:hover{ background:var(--teal-dark); }
+  .btn:active{ transform:translateY(1px); }
+  .btn.secondary{ background:transparent; color:var(--ink); border:1px solid var(--line); }
+  .btn.secondary:hover{ background:#F3F4F1; }
+  .btn.ghost{ background:transparent; color:var(--teal-dark); padding:6px 10px; }
+  .btn:disabled{ opacity:.45; cursor:not-allowed; }
+  .role-grid{ display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-top:24px; }
+  @media (max-width:640px){ .role-grid{ grid-template-columns:1fr; } }
+  .role-card{
+    border:1px solid var(--line); border-radius:var(--radius); padding:26px;
+    cursor:pointer; background:#fff; transition:box-shadow .15s ease, border-color .15s ease;
+  }
+  .role-card:hover{ box-shadow:0 8px 24px rgba(35,44,75,.10); border-color:var(--teal); }
+  .role-card .eyebrow{ font-family:'IBM Plex Mono',monospace; font-size:.72rem; text-transform:uppercase; letter-spacing:.1em; color:var(--teal-dark); }
+  .field{ margin-bottom:16px; }
+  .field label{ display:block; font-size:.82rem; font-weight:600; color:var(--ink-soft); margin-bottom:5px; }
+  .field input, .field select, .field textarea{
+    width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:8px;
+    font-family:'Inter',sans-serif; font-size:.95rem; background:#FBFBFA;
+  }
+  .field textarea{ font-family:'IBM Plex Mono',monospace; font-size:.82rem; }
+  .grid-2{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width:640px){ .grid-2{ grid-template-columns:1fr; } }
+  .progress-wrap{ background:#E4E7E2; border-radius:20px; height:8px; overflow:hidden; margin:6px 0 4px; }
+  .progress-bar{ background:var(--teal); height:100%; transition:width .2s ease; }
+  .progress-label{ font-family:'IBM Plex Mono',monospace; font-size:.75rem; color:var(--ink-soft); }
+  .item-row{ border-bottom:1px solid var(--line); padding:16px 0; }
+  .item-row:last-child{ border-bottom:none; }
+  .item-text{ font-size:.95rem; margin-bottom:10px; }
+  .item-num{ font-family:'IBM Plex Mono',monospace; color:var(--teal-dark); font-weight:600; margin-right:6px; }
+  .scale{ display:flex; gap:6px; flex-wrap:wrap; }
+  .scale label{
+    flex:1; min-width:118px; text-align:center; border:1px solid var(--line); border-radius:8px;
+    padding:10px 6px; font-size:.8rem; line-height:1.25; cursor:pointer; color:var(--ink-soft); user-select:none;
+  }
+  .scale input{ display:none; }
+  .scale label.checked{ background:var(--ink); color:#fff; border-color:var(--ink); font-weight:600; }
+  .nav-row{ display:flex; justify-content:space-between; align-items:center; margin-top:20px; gap:12px; }
+  .facet-group{ border:1px solid var(--line); border-radius:10px; margin-bottom:12px; overflow:hidden; }
+  .facet-group summary{ padding:12px 16px; cursor:pointer; font-weight:600; background:#F7F8F6; list-style:none; display:flex; justify-content:space-between; }
+  .facet-group summary::-webkit-details-marker{ display:none; }
+  .facet-group .facet-body{ padding:14px 16px; }
+  .facet-body .field{ margin-bottom:10px; }
+  .code-box{ background:#F7F8F6; border:1px solid var(--line); border-radius:8px; padding:14px; font-family:'IBM Plex Mono',monospace; font-size:.78rem; word-break:break-all; max-height:140px; overflow:auto; }
+  .alert{ border-radius:8px; padding:12px 16px; font-size:.88rem; margin-bottom:16px; }
+  .alert.info{ background:#EAF2F0; color:var(--teal-dark); border:1px solid #CFE3DC; }
+  .alert.warn{ background:#FBF2E4; color:#8A5A16; border:1px solid #F0DDB6; }
+  .alert.error{ background:#FBEAEA; color:#A33; border:1px solid #F0C6C6; }
+  table.report-table{ width:100%; border-collapse:collapse; font-size:.86rem; }
+  table.report-table th, table.report-table td{ text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); }
+  table.report-table th{ font-family:'IBM Plex Mono',monospace; font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-soft); }
+  .band-chip{ display:inline-block; padding:2px 9px; border-radius:20px; font-size:.72rem; font-weight:600; color:#fff; }
+  .domain-block{ margin-bottom:34px; }
+  .domain-title-row{ display:flex; align-items:baseline; gap:10px; margin-bottom:6px; }
+  .domain-dot{ width:12px; height:12px; border-radius:50%; display:inline-block; }
+  .candidate-list-item{ display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--line); }
+  .candidate-list-item:last-child{ border-bottom:none; }
+  canvas{ max-width:100%; }
+  .footer-note{ text-align:center; color:var(--ink-soft); font-size:.78rem; margin-top:30px; }
+  @media print{
+    .app-header, .no-print{ display:none !important; }
+    body{ background:#fff; }
+    .card{ box-shadow:none; border:none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app-header">
+  <div class="brand">
+    <h1>NEO&nbsp;PI-R</h1>
+    <span id="modeLabel">Plateforme d'évaluation</span>
+  </div>
+  <div class="mode-tag" id="roleTag">—</div>
+</div>
+
+<main>
+
+<!-- ============ ROLE SELECTION ============ -->
+<section id="screen-role" class="card">
+  <h2>Bienvenue</h2>
+  <p class="lede">Choisissez votre profil pour continuer. Le candidat répond au questionnaire ; l'administrateur (psychologue / examinateur) configure les items, importe les réponses et consulte les résultats.</p>
+  <div class="role-grid">
+    <div class="role-card" onclick="goTo('candidateWelcome')">
+      <div class="eyebrow">Répondant</div>
+      <h3>Candidat</h3>
+      <p class="lede">Renseigner mes informations et répondre au questionnaire.</p>
+    </div>
+    <div class="role-card" onclick="goTo('adminLogin')">
+      <div class="eyebrow">Examinateur</div>
+      <h3>Administrateur</h3>
+      <p class="lede">Configurer les items, importer des réponses, consulter les résultats.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CANDIDATE: WELCOME / IDENTITY ============ -->
+<section id="screen-candidateWelcome" class="card hidden">
+  <h2>Informations du candidat</h2>
+  <p class="lede">Il n'y a pas de bonnes ou de mauvaises réponses. Répondez selon ce qui vous correspond habituellement, pas seulement en ce moment.</p>
+  <div class="grid-2">
+    <div class="field"><label>Nom</label><input id="ci-nom" type="text"></div>
+    <div class="field"><label>Prénom</label><input id="ci-prenom" type="text"></div>
+    <div class="field"><label>Sexe</label>
+      <select id="ci-sexe"><option value="">—</option><option>Féminin</option><option>Masculin</option></select>
+    </div>
+    <div class="field"><label>Âge</label><input id="ci-age" type="number" min="0"></div>
+    <div class="field"><label>Profession</label><input id="ci-profession" type="text"></div>
+    <div class="field"><label>Date de passation</label><input id="ci-date" type="date"></div>
+    <div class="field"><label>Examinateur</label><input id="ci-examinateur" type="text" placeholder="Nom du psychologue"></div>
+    <div class="field"><label>Email de l'administrateur (destinataire des résultats)</label><input id="ci-email" type="email" placeholder="admin@exemple.com"></div>
+  </div>
+  <div id="ci-error" class="alert error hidden"></div>
+  <div class="nav-row">
+    <button class="btn secondary" onclick="goTo('role')">← Retour</button>
+    <button class="btn" onclick="startTest()">Commencer le questionnaire →</button>
+  </div>
+</section>
+
+<!-- ============ CANDIDATE: TEST ============ -->
+<section id="screen-candidateTest" class="card hidden">
+  <div class="progress-label" id="progressLabel">Page 1 / 8 · 0 / 240 réponses</div>
+  <div class="progress-wrap"><div class="progress-bar" id="progressBar" style="width:0%"></div></div>
+  <div id="testPageBody" style="margin-top:18px;"></div>
+  <div id="test-error" class="alert warn hidden"></div>
+  <div class="nav-row">
+    <button class="btn secondary" id="btnPrevPage" onclick="changePage(-1)">← Précédent</button>
+    <button class="btn" id="btnNextPage" onclick="changePage(1)">Suivant →</button>
+  </div>
+</section>
+
+<!-- ============ CANDIDATE: DONE ============ -->
+<section id="screen-candidateDone" class="card hidden">
+  <h2>Merci, vos réponses sont enregistrées</h2>
+  <p class="lede">Envoyez ce code à votre examinateur pour qu'il puisse l'analyser, ou téléchargez le fichier de résultats.</p>
+  <div class="code-box mono" id="resultCode"></div>
+  <div class="nav-row" style="justify-content:flex-start; gap:10px; flex-wrap:wrap;">
+    <button class="btn" id="btnMailto" onclick="sendByEmail()">Envoyer par e-mail</button>
+    <button class="btn secondary" onclick="copyCode()">Copier le code</button>
+    <button class="btn secondary" onclick="downloadResults()">Télécharger le fichier</button>
+  </div>
+</section>
+
+<!-- ============ ADMIN: LOGIN ============ -->
+<section id="screen-adminLogin" class="card hidden">
+  <h2>Accès administrateur</h2>
+  <p class="lede">Cet accès est protégé par mot de passe. Il ne s'agit pas d'un chiffrement fort : ce fichier étant autonome (sans serveur), toute personne ayant accès au code source peut potentiellement le contourner. Ne l'utilisez pas pour des données hautement sensibles sans mesures complémentaires.</p>
+  <div class="field"><label>Mot de passe</label><input id="admin-pwd" type="password" onkeydown="if(event.key==='Enter')tryLogin()"></div>
+  <div id="admin-login-error" class="alert error hidden">Mot de passe incorrect.</div>
+  <div class="nav-row">
+    <button class="btn secondary" onclick="goTo('role')">← Retour</button>
+    <button class="btn" onclick="tryLogin()">Se connecter</button>
+  </div>
+</section>
+
+<!-- ============ ADMIN: DASHBOARD ============ -->
+<section id="screen-adminDashboard" class="card hidden">
+  <h2>Tableau de bord administrateur</h2>
+  <p class="lede">Configurez les items du test, importez les réponses reçues par e-mail, puis consultez les rapports.</p>
+  <div class="alert info">Échelle de réponse : <strong>0</strong> = Pas du tout d'accord (SD) … <strong>4</strong> = Tout à fait d'accord (SA). Les 120 items à coter en sens inverse (SA=0 … SD=4) sont repérés par une étiquette « inversé » dans l'écran de configuration des items, conformément à la grille de cotation.</div>
+  <div class="nav-row" style="justify-content:flex-start; gap:10px; flex-wrap:wrap; margin-bottom:20px;">
+    <button class="btn secondary" onclick="goTo('adminConfig')">Configurer les items</button>
+    <button class="btn secondary" onclick="exportDB()">Exporter la base (.json)</button>
+    <label class="btn secondary" style="cursor:pointer;">Importer une base
+      <input type="file" accept=".json" onchange="importDB(event)" style="display:none;">
+    </label>
+  </div>
+
+  <h3 style="font-size:1.05rem;">Importer un résultat</h3>
+  <div class="field"><label>Coller le code reçu par e-mail</label><textarea id="importCodeArea" rows="4" placeholder="Collez ici le code de résultats du candidat…"></textarea></div>
+  <div class="nav-row" style="justify-content:flex-start; gap:10px;">
+    <button class="btn" onclick="importFromCode()">Charger ce résultat</button>
+    <label class="btn secondary" style="cursor:pointer;">…ou importer un fichier
+      <input type="file" accept=".txt,.json" onchange="importFromFile(event)" style="display:none;">
+    </label>
+  </div>
+  <div id="import-error" class="alert error hidden" style="margin-top:14px;"></div>
+
+  <h3 style="font-size:1.05rem; margin-top:26px;">Candidats chargés</h3>
+  <div id="candidateList"><p class="lede">Aucun résultat chargé pour l'instant.</p></div>
+</section>
+
+<!-- ============ ADMIN: CONFIG ============ -->
+<section id="screen-adminConfig" class="card hidden">
+  <h2>Configuration des items</h2>
+  <p class="lede">Saisissez le texte officiel des 240 items du NEO PI-R (dont vous détenez la licence) pour chaque facette. Une fois enregistrée, la configuration est intégrée dans un nouveau fichier HTML à distribuer aux candidats.</p>
+
+  <details class="facet-group" open>
+    <summary>Import en masse (coller le questionnaire complet)</summary>
+    <div class="facet-body">
+      <p class="lede">Collez ci-dessous votre document tel quel, avec la numérotation ("1. …", "2. …"). Les lignes d'échelle (SD D N A SA) et les lignes vides sont ignorées automatiquement.</p>
+      <div class="field"><textarea id="bulkImportArea" rows="10" placeholder="1. Je ne suis pas inquiet.&#10;SD D N A SA&#10;2. J'aime vraiment la plupart des gens que je rencontre.&#10;..."></textarea></div>
+      <button class="btn" onclick="bulkImportItems()">Répartir automatiquement dans les 240 champs</button>
+      <div id="bulk-status" class="alert info hidden" style="margin-top:12px;"></div>
+    </div>
+  </details>
+
+  <div class="field"><label>Mot de passe administrateur (laisser vide pour ne pas le changer)</label><input id="cfg-newpwd" type="password" placeholder="Nouveau mot de passe (optionnel)"></div>
+  <div id="facetGroups"></div>
+  <div id="cfg-status" class="alert info hidden"></div>
+  <div class="nav-row">
+    <button class="btn secondary" onclick="goTo('adminDashboard')">← Retour</button>
+    <button class="btn" onclick="saveConfig()">Enregistrer et télécharger la version candidat</button>
+  </div>
+</section>
+
+<!-- ============ ADMIN: REPORT ============ -->
+<section id="screen-adminReport" class="card hidden">
+  <div id="reportContent"></div>
+</section>
+
+</main>
+
+<div class="footer-note no-print">NEO PI-R — outil interne d'administration et de cotation. Structure et clés de cotation d'après le matériel fourni par l'utilisateur.</div>
+
+<script>
+/* ======================= DATA ======================= */
+const FACET_ORDER = ["N1", "E1", "O1", "A1", "C1", "N2", "E2", "O2", "A2", "C2", "N3", "E3", "O3", "A3", "C3", "N4", "E4", "O4", "A4", "C4", "N5", "E5", "O5", "A5", "C5", "N6", "E6", "O6", "A6", "C6"];
+const REVERSED_ITEMS = new Set([1, 4, 7, 8, 10, 11, 14, 17, 18, 20, 21, 24, 27, 28, 30, 35, 36, 39, 42, 43, 45, 46, 49, 52, 53, 55, 59, 61, 64, 67, 68, 70, 71, 74, 77, 78, 80, 81, 84, 87, 88, 90, 92, 93, 95, 96, 99, 102, 103, 105, 106, 109, 112, 113, 115, 116, 119, 121, 124, 127, 128, 130, 134, 137, 138, 140, 141, 144, 147, 148, 150, 153, 155, 156, 159, 162, 163, 166, 169, 173, 175, 176, 181, 183, 187, 190, 198, 199, 205, 206, 207, 208, 213, 219, 220, 222, 228, 229, 231, 234, 236, 238]);
+const FACET_INFO = {"N1": {"name": "Anxiété", "low": "calme, détendu(e), rarement inquiet(ète)", "high": "tendu(e), inquiet(ète), appréhensif(ve)"}, "N2": {"name": "Hostilité", "low": "patient(e), placide, rarement irrité(e)", "high": "irritable, prompt(e) à la colère, facilement frustré(e)"}, "N3": {"name": "Dépression", "low": "rarement découragé(e), optimiste au quotidien", "high": "sujet(te) à la tristesse, au découragement, à la culpabilité"}, "N4": {"name": "Auto-conscience (timidité sociale)", "low": "à l'aise en société, peu affecté(e) par le regard d'autrui", "high": "timide, sensible à la moquerie, mal à l'aise en public"}, "N5": {"name": "Impulsivité", "low": "maîtrise ses envies, résiste aux tentations", "high": "cède facilement à ses envies, agit sur un coup de tête"}, "N6": {"name": "Vulnérabilité", "low": "garde son sang-froid sous pression", "high": "se sent vite dépassé(e) par le stress et les difficultés"}, "E1": {"name": "Chaleur (accueil chaleureux)", "low": "réservé(e), plutôt formel(le) dans les contacts", "high": "chaleureux(se), affectueux(se), attaché(e) à ses proches"}, "E2": {"name": "Grégarité", "low": "apprécie la solitude, peu porté(e) vers les groupes", "high": "aime la compagnie, recherche les groupes et les foules"}, "E3": {"name": "Assertivité", "low": "discret(ète), laisse volontiers les autres mener", "high": "affirmé(e), prend facilement les devants, aime diriger"}, "E4": {"name": "Activité", "low": "posé(e), rythme de vie tranquille", "high": "dynamique, énergique, toujours occupé(e)"}, "E5": {"name": "Recherche d'excitation", "low": "préfère la routine, évite le risque", "high": "recherche les sensations fortes et la nouveauté stimulante"}, "E6": {"name": "Émotions positives", "low": "sobre, peu expansif(ve) dans la joie", "high": "enjoué(e), rit facilement, exprime sa joie"}, "O1": {"name": "Fantaisie (imagination)", "low": "pragmatique, ancré(e) dans le concret", "high": "imaginatif(ve), rêveur(se), riche vie intérieure"}, "O2": {"name": "Esthétique", "low": "peu sensible à l'art et à la beauté formelle", "high": "sensible à l'art, à la beauté, à la poésie"}, "O3": {"name": "Sentiments", "low": "peu attentif(ve) à ses propres émotions", "high": "attentif(ve) à ses émotions, les vit intensément"}, "O4": {"name": "Actions", "low": "préfère les habitudes, résiste au changement", "high": "aime essayer des choses nouvelles, varier ses activités"}, "O5": {"name": "Idées", "low": "peu porté(e) sur les débats abstraits", "high": "curieux(se) intellectuellement, aime les idées complexes"}, "O6": {"name": "Valeurs", "low": "attaché(e) aux valeurs établies, plutôt traditionaliste", "high": "prêt(e) à remettre en question les normes établies"}, "A1": {"name": "Confiance", "low": "méfiant(e), suppose des intentions cachées chez autrui", "high": "fait facilement confiance, pense les autres bien intentionnés"}, "A2": {"name": "Droiture", "low": "prêt(e) à ruser pour arriver à ses fins", "high": "franc(he), direct(e), sincère dans ses échanges"}, "A3": {"name": "Altruisme", "low": "centré(e) sur ses propres intérêts", "high": "généreux(se), attentionné(e), porté(e) à aider autrui"}, "A4": {"name": "Compliance", "low": "compétitif(ve), prêt(e) à s'opposer ouvertement", "high": "conciliant(e), évite les conflits, cède facilement"}, "A5": {"name": "Modestie", "low": "sûr(e) de sa valeur, peut sembler prétentieux(se)", "high": "humble, discret(ète) sur ses propres qualités"}, "A6": {"name": "Sensibilité (aux autres)", "low": "privilégie la logique à la compassion", "high": "empathique, sensible à la détresse d'autrui"}, "C1": {"name": "Compétence", "low": "doute de sa capacité à bien faire les choses", "high": "se sent capable, efficace, bien préparé(e)"}, "C2": {"name": "Ordre", "low": "peu organisé(e), plutôt désordonné(e)", "high": "méthodique, aime la précision et le rangement"}, "C3": {"name": "Sens du devoir", "low": "peu attaché(e) aux obligations et engagements", "high": "fiable, respecte scrupuleusement ses engagements"}, "C4": {"name": "Effort de réalisation", "low": "peu ambitieux(se), se satisfait de peu", "high": "ambitieux(se), travailleur(se), vise haut"}, "C5": {"name": "Autodiscipline", "low": "procrastine, se décourage facilement", "high": "persévérant(e), va au bout des tâches entreprises"}, "C6": {"name": "Délibération", "low": "agit vite, parfois de façon impulsive", "high": "réfléchi(e), pèse le pour et le contre avant d'agir"}};
+const DOMAIN_INFO = {"N": {"name": "Névrosisme", "color": "#B85C5C"}, "E": {"name": "Extraversion", "color": "#D8A24A"}, "O": {"name": "Ouverture", "color": "#3F9C7A"}, "A": {"name": "Agréabilité", "color": "#4472CA"}, "C": {"name": "Conscience", "color": "#7B5EA7"}};
+const DOMAIN_TEXT = {"N": ["Le score obtenu indique une très grande stabilité émotionnelle. La personne évaluée se décrit comme rarement affectée par le stress, l'inquiétude ou les affects négatifs, et garde généralement son calme même dans des situations difficiles.", "Le score obtenu indique une bonne stabilité émotionnelle. La personne évaluée se dit globalement calme et sereine, tout en pouvant ressentir occasionnellement des tensions ou des contrariétés.", "Le score obtenu se situe dans la moyenne. La personne évaluée présente un équilibre émotionnel comparable à celui de la majorité des personnes, avec des hauts et des bas modérés selon les circonstances.", "Le score obtenu indique une sensibilité émotionnelle marquée. La personne évaluée rapporte être plus facilement affectée par le stress, l'inquiétude ou les émotions négatives que la moyenne.", "Le score obtenu indique une vulnérabilité émotionnelle importante. La personne évaluée se décrit comme fréquemment submergée par des émotions négatives telles que l'anxiété, la tristesse ou l'irritabilité."], "E": ["Profil fortement introverti. La personne évaluée privilégie nettement la solitude ou les échanges restreints, et se montre réservée dans ses interactions sociales.", "Profil plutôt introverti. La personne évaluée apprécie son indépendance et préfère des interactions sociales mesurées plutôt que l'agitation des groupes.", "Profil équilibré entre introversion et extraversion. La personne évaluée sait s'adapter aussi bien aux situations sociales qu'aux moments de solitude.", "Profil plutôt extraverti. La personne évaluée est à l'aise en société, recherche la compagnie d'autrui et se montre énergique et enjouée.", "Profil fortement extraverti. La personne évaluée recherche activement les contacts sociaux, se montre très communicative, dynamique et enthousiaste."], "O": ["Ouverture d'esprit très limitée. La personne évaluée privilégie nettement le concret et le familier, et se montre peu encline à explorer des idées ou expériences nouvelles.", "Ouverture d'esprit modérément limitée. La personne évaluée reste attachée à ses habitudes tout en pouvant occasionnellement s'intéresser à des idées nouvelles.", "Ouverture d'esprit dans la moyenne. La personne évaluée sait apprécier la nouveauté tout en restant attachée à certains repères familiers.", "Bonne ouverture d'esprit. La personne évaluée manifeste un intérêt marqué pour les idées, les expériences et les perspectives nouvelles.", "Très grande ouverture d'esprit. La personne évaluée recherche activement la nouveauté, l'expérimentation intellectuelle et esthétique, et questionne volontiers les conventions établies."], "A": ["Faible agréabilité. La personne évaluée se montre nettement plus centrée sur ses propres intérêts, compétitive et sceptique envers les intentions d'autrui.", "Agréabilité modérément réduite. La personne évaluée peut se montrer directe voire compétitive dans ses relations, sans être franchement opposante.", "Agréabilité dans la moyenne. La personne évaluée sait à la fois coopérer avec autrui et défendre ses propres intérêts selon les situations.", "Bonne agréabilité. La personne évaluée se montre coopérative, bienveillante et attentive aux besoins d'autrui.", "Agréabilité très marquée. La personne évaluée fait preuve d'un altruisme et d'une confiance envers autrui particulièrement développés, parfois au détriment de ses propres intérêts."], "C": ["Faible degré de conscience. La personne évaluée montre peu d'organisation, de persévérance ou d'orientation vers un objectif dans son quotidien.", "Conscience modérément réduite. La personne évaluée peut manquer ponctuellement de rigueur ou de persévérance dans la poursuite de ses objectifs.", "Conscience dans la moyenne. La personne évaluée fait preuve d'une organisation et d'une persévérance comparables à celles de la majorité des personnes.", "Bon degré de conscience. La personne évaluée se montre organisée, fiable et orientée vers l'atteinte de ses objectifs.", "Conscience très marquée. La personne évaluée fait preuve d'une discipline, d'une rigueur et d'une détermination particulièrement développées, avec un risque de perfectionnisme excessif."]};
+/*ITEM_BANK_START*/
+window.ITEM_BANK = {"1": "Élément 1 (facette N1) — texte à saisir par l'administrateur", "2": "Élément 2 (facette E1) — texte à saisir par l'administrateur", "3": "Élément 3 (facette O1) — texte à saisir par l'administrateur", "4": "Élément 4 (facette A1) — texte à saisir par l'administrateur", "5": "Élément 5 (facette C1) — texte à saisir par l'administrateur", "6": "Élément 6 (facette N2) — texte à saisir par l'administrateur", "7": "Élément 7 (facette E2) — texte à saisir par l'administrateur", "8": "Élément 8 (facette O2) — texte à saisir par l'administrateur", "9": "Élément 9 (facette A2) — texte à saisir par l'administrateur", "10": "Élément 10 (facette C2) — texte à saisir par l'administrateur", "11": "Élément 11 (facette N3) — texte à saisir par l'administrateur", "12": "Élément 12 (facette E3) — texte à saisir par l'administrateur", "13": "Élément 13 (facette O3) — texte à saisir par l'administrateur", "14": "Élément 14 (facette A3) — texte à saisir par l'administrateur", "15": "Élément 15 (facette C3) — texte à saisir par l'administrateur", "16": "Élément 16 (facette N4) — texte à saisir par l'administrateur", "17": "Élément 17 (facette E4) — texte à saisir par l'administrateur", "18": "Élément 18 (facette O4) — texte à saisir par l'administrateur", "19": "Élément 19 (facette A4) — texte à saisir par l'administrateur", "20": "Élément 20 (facette C4) — texte à saisir par l'administrateur", "21": "Élément 21 (facette N5) — texte à saisir par l'administrateur", "22": "Élément 22 (facette E5) — texte à saisir par l'administrateur", "23": "Élément 23 (facette O5) — texte à saisir par l'administrateur", "24": "Élément 24 (facette A5) — texte à saisir par l'administrateur", "25": "Élément 25 (facette C5) — texte à saisir par l'administrateur", "26": "Élément 26 (facette N6) — texte à saisir par l'administrateur", "27": "Élément 27 (facette E6) — texte à saisir par l'administrateur", "28": "Élément 28 (facette O6) — texte à saisir par l'administrateur", "29": "Élément 29 (facette A6) — texte à saisir par l'administrateur", "30": "Élément 30 (facette C6) — texte à saisir par l'administrateur", "31": "Élément 31 (facette N1) — texte à saisir par l'administrateur", "32": "Élément 32 (facette E1) — texte à saisir par l'administrateur", "33": "Élément 33 (facette O1) — texte à saisir par l'administrateur", "34": "Élément 34 (facette A1) — texte à saisir par l'administrateur", "35": "Élément 35 (facette C1) — texte à saisir par l'administrateur", "36": "Élément 36 (facette N2) — texte à saisir par l'administrateur", "37": "Élément 37 (facette E2) — texte à saisir par l'administrateur", "38": "Élément 38 (facette O2) — texte à saisir par l'administrateur", "39": "Élément 39 (facette A2) — texte à saisir par l'administrateur", "40": "Élément 40 (facette C2) — texte à saisir par l'administrateur", "41": "Élément 41 (facette N3) — texte à saisir par l'administrateur", "42": "Élément 42 (facette E3) — texte à saisir par l'administrateur", "43": "Élément 43 (facette O3) — texte à saisir par l'administrateur", "44": "Élément 44 (facette A3) — texte à saisir par l'administrateur", "45": "Élément 45 (facette C3) — texte à saisir par l'administrateur", "46": "Élément 46 (facette N4) — texte à saisir par l'administrateur", "47": "Élément 47 (facette E4) — texte à saisir par l'administrateur", "48": "Élément 48 (facette O4) — texte à saisir par l'administrateur", "49": "Élément 49 (facette A4) — texte à saisir par l'administrateur", "50": "Élément 50 (facette C4) — texte à saisir par l'administrateur", "51": "Élément 51 (facette N5) — texte à saisir par l'administrateur", "52": "Élément 52 (facette E5) — texte à saisir par l'administrateur", "53": "Élément 53 (facette O5) — texte à saisir par l'administrateur", "54": "Élément 54 (facette A5) — texte à saisir par l'administrateur", "55": "Élément 55 (facette C5) — texte à saisir par l'administrateur", "56": "Élément 56 (facette N6) — texte à saisir par l'administrateur", "57": "Élément 57 (facette E6) — texte à saisir par l'administrateur", "58": "Élément 58 (facette O6) — texte à saisir par l'administrateur", "59": "Élément 59 (facette A6) — texte à saisir par l'administrateur", "60": "Élément 60 (facette C6) — texte à saisir par l'administrateur", "61": "Élément 61 (facette N1) — texte à saisir par l'administrateur", "62": "Élément 62 (facette E1) — texte à saisir par l'administrateur", "63": "Élément 63 (facette O1) — texte à saisir par l'administrateur", "64": "Élément 64 (facette A1) — texte à saisir par l'administrateur", "65": "Élément 65 (facette C1) — texte à saisir par l'administrateur", "66": "Élément 66 (facette N2) — texte à saisir par l'administrateur", "67": "Élément 67 (facette E2) — texte à saisir par l'administrateur", "68": "Élément 68 (facette O2) — texte à saisir par l'administrateur", "69": "Élément 69 (facette A2) — texte à saisir par l'administrateur", "70": "Élément 70 (facette C2) — texte à saisir par l'administrateur", "71": "Élément 71 (facette N3) — texte à saisir par l'administrateur", "72": "Élément 72 (facette E3) — texte à saisir par l'administrateur", "73": "Élément 73 (facette O3) — texte à saisir par l'administrateur", "74": "Élément 74 (facette A3) — texte à saisir par l'administrateur", "75": "Élément 75 (facette C3) — texte à saisir par l'administrateur", "76": "Élément 76 (facette N4) — texte à saisir par l'administrateur", "77": "Élément 77 (facette E4) — texte à saisir par l'administrateur", "78": "Élément 78 (facette O4) — texte à saisir par l'administrateur", "79": "Élément 79 (facette A4) — texte à saisir par l'administrateur", "80": "Élément 80 (facette C4) — texte à saisir par l'administrateur", "81": "Élément 81 (facette N5) — texte à saisir par l'administrateur", "82": "Élément 82 (facette E5) — texte à saisir par l'administrateur", "83": "Élément 83 (facette O5) — texte à saisir par l'administrateur", "84": "Élément 84 (facette A5) — texte à saisir par l'administrateur", "85": "Élément 85 (facette C5) — texte à saisir par l'administrateur", "86": "Élément 86 (facette N6) — texte à saisir par l'administrateur", "87": "Élément 87 (facette E6) — texte à saisir par l'administrateur", "88": "Élément 88 (facette O6) — texte à saisir par l'administrateur", "89": "Élément 89 (facette A6) — texte à saisir par l'administrateur", "90": "Élément 90 (facette C6) — texte à saisir par l'administrateur", "91": "Élément 91 (facette N1) — texte à saisir par l'administrateur", "92": "Élément 92 (facette E1) — texte à saisir par l'administrateur", "93": "Élément 93 (facette O1) — texte à saisir par l'administrateur", "94": "Élément 94 (facette A1) — texte à saisir par l'administrateur", "95": "Élément 95 (facette C1) — texte à saisir par l'administrateur", "96": "Élément 96 (facette N2) — texte à saisir par l'administrateur", "97": "Élément 97 (facette E2) — texte à saisir par l'administrateur", "98": "Élément 98 (facette O2) — texte à saisir par l'administrateur", "99": "Élément 99 (facette A2) — texte à saisir par l'administrateur", "100": "Élément 100 (facette C2) — texte à saisir par l'administrateur", "101": "Élément 101 (facette N3) — texte à saisir par l'administrateur", "102": "Élément 102 (facette E3) — texte à saisir par l'administrateur", "103": "Élément 103 (facette O3) — texte à saisir par l'administrateur", "104": "Élément 104 (facette A3) — texte à saisir par l'administrateur", "105": "Élément 105 (facette C3) — texte à saisir par l'administrateur", "106": "Élément 106 (facette N4) — texte à saisir par l'administrateur", "107": "Élément 107 (facette E4) — texte à saisir par l'administrateur", "108": "Élément 108 (facette O4) — texte à saisir par l'administrateur", "109": "Élément 109 (facette A4) — texte à saisir par l'administrateur", "110": "Élément 110 (facette C4) — texte à saisir par l'administrateur", "111": "Élément 111 (facette N5) — texte à saisir par l'administrateur", "112": "Élément 112 (facette E5) — texte à saisir par l'administrateur", "113": "Élément 113 (facette O5) — texte à saisir par l'administrateur", "114": "Élément 114 (facette A5) — texte à saisir par l'administrateur", "115": "Élément 115 (facette C5) — texte à saisir par l'administrateur", "116": "Élément 116 (facette N6) — texte à saisir par l'administrateur", "117": "Élément 117 (facette E6) — texte à saisir par l'administrateur", "118": "Élément 118 (facette O6) — texte à saisir par l'administrateur", "119": "Élément 119 (facette A6) — texte à saisir par l'administrateur", "120": "Élément 120 (facette C6) — texte à saisir par l'administrateur", "121": "Élément 121 (facette N1) — texte à saisir par l'administrateur", "122": "Élément 122 (facette E1) — texte à saisir par l'administrateur", "123": "Élément 123 (facette O1) — texte à saisir par l'administrateur", "124": "Élément 124 (facette A1) — texte à saisir par l'administrateur", "125": "Élément 125 (facette C1) — texte à saisir par l'administrateur", "126": "Élément 126 (facette N2) — texte à saisir par l'administrateur", "127": "Élément 127 (facette E2) — texte à saisir par l'administrateur", "128": "Élément 128 (facette O2) — texte à saisir par l'administrateur", "129": "Élément 129 (facette A2) — texte à saisir par l'administrateur", "130": "Élément 130 (facette C2) — texte à saisir par l'administrateur", "131": "Élément 131 (facette N3) — texte à saisir par l'administrateur", "132": "Élément 132 (facette E3) — texte à saisir par l'administrateur", "133": "Élément 133 (facette O3) — texte à saisir par l'administrateur", "134": "Élément 134 (facette A3) — texte à saisir par l'administrateur", "135": "Élément 135 (facette C3) — texte à saisir par l'administrateur", "136": "Élément 136 (facette N4) — texte à saisir par l'administrateur", "137": "Élément 137 (facette E4) — texte à saisir par l'administrateur", "138": "Élément 138 (facette O4) — texte à saisir par l'administrateur", "139": "Élément 139 (facette A4) — texte à saisir par l'administrateur", "140": "Élément 140 (facette C4) — texte à saisir par l'administrateur", "141": "Élément 141 (facette N5) — texte à saisir par l'administrateur", "142": "Élément 142 (facette E5) — texte à saisir par l'administrateur", "143": "Élément 143 (facette O5) — texte à saisir par l'administrateur", "144": "Élément 144 (facette A5) — texte à saisir par l'administrateur", "145": "Élément 145 (facette C5) — texte à saisir par l'administrateur", "146": "Élément 146 (facette N6) — texte à saisir par l'administrateur", "147": "Élément 147 (facette E6) — texte à saisir par l'administrateur", "148": "Élément 148 (facette O6) — texte à saisir par l'administrateur", "149": "Élément 149 (facette A6) — texte à saisir par l'administrateur", "150": "Élément 150 (facette C6) — texte à saisir par l'administrateur", "151": "Élément 151 (facette N1) — texte à saisir par l'administrateur", "152": "Élément 152 (facette E1) — texte à saisir par l'administrateur", "153": "Élément 153 (facette O1) — texte à saisir par l'administrateur", "154": "Élément 154 (facette A1) — texte à saisir par l'administrateur", "155": "Élément 155 (facette C1) — texte à saisir par l'administrateur", "156": "Élément 156 (facette N2) — texte à saisir par l'administrateur", "157": "Élément 157 (facette E2) — texte à saisir par l'administrateur", "158": "Élément 158 (facette O2) — texte à saisir par l'administrateur", "159": "Élément 159 (facette A2) — texte à saisir par l'administrateur", "160": "Élément 160 (facette C2) — texte à saisir par l'administrateur", "161": "Élément 161 (facette N3) — texte à saisir par l'administrateur", "162": "Élément 162 (facette E3) — texte à saisir par l'administrateur", "163": "Élément 163 (facette O3) — texte à saisir par l'administrateur", "164": "Élément 164 (facette A3) — texte à saisir par l'administrateur", "165": "Élément 165 (facette C3) — texte à saisir par l'administrateur", "166": "Élément 166 (facette N4) — texte à saisir par l'administrateur", "167": "Élément 167 (facette E4) — texte à saisir par l'administrateur", "168": "Élément 168 (facette O4) — texte à saisir par l'administrateur", "169": "Élément 169 (facette A4) — texte à saisir par l'administrateur", "170": "Élément 170 (facette C4) — texte à saisir par l'administrateur", "171": "Élément 171 (facette N5) — texte à saisir par l'administrateur", "172": "Élément 172 (facette E5) — texte à saisir par l'administrateur", "173": "Élément 173 (facette O5) — texte à saisir par l'administrateur", "174": "Élément 174 (facette A5) — texte à saisir par l'administrateur", "175": "Élément 175 (facette C5) — texte à saisir par l'administrateur", "176": "Élément 176 (facette N6) — texte à saisir par l'administrateur", "177": "Élément 177 (facette E6) — texte à saisir par l'administrateur", "178": "Élément 178 (facette O6) — texte à saisir par l'administrateur", "179": "Élément 179 (facette A6) — texte à saisir par l'administrateur", "180": "Élément 180 (facette C6) — texte à saisir par l'administrateur", "181": "Élément 181 (facette N1) — texte à saisir par l'administrateur", "182": "Élément 182 (facette E1) — texte à saisir par l'administrateur", "183": "Élément 183 (facette O1) — texte à saisir par l'administrateur", "184": "Élément 184 (facette A1) — texte à saisir par l'administrateur", "185": "Élément 185 (facette C1) — texte à saisir par l'administrateur", "186": "Élément 186 (facette N2) — texte à saisir par l'administrateur", "187": "Élément 187 (facette E2) — texte à saisir par l'administrateur", "188": "Élément 188 (facette O2) — texte à saisir par l'administrateur", "189": "Élément 189 (facette A2) — texte à saisir par l'administrateur", "190": "Élément 190 (facette C2) — texte à saisir par l'administrateur", "191": "Élément 191 (facette N3) — texte à saisir par l'administrateur", "192": "Élément 192 (facette E3) — texte à saisir par l'administrateur", "193": "Élément 193 (facette O3) — texte à saisir par l'administrateur", "194": "Élément 194 (facette A3) — texte à saisir par l'administrateur", "195": "Élément 195 (facette C3) — texte à saisir par l'administrateur", "196": "Élément 196 (facette N4) — texte à saisir par l'administrateur", "197": "Élément 197 (facette E4) — texte à saisir par l'administrateur", "198": "Élément 198 (facette O4) — texte à saisir par l'administrateur", "199": "Élément 199 (facette A4) — texte à saisir par l'administrateur", "200": "Élément 200 (facette C4) — texte à saisir par l'administrateur", "201": "Élément 201 (facette N5) — texte à saisir par l'administrateur", "202": "Élément 202 (facette E5) — texte à saisir par l'administrateur", "203": "Élément 203 (facette O5) — texte à saisir par l'administrateur", "204": "Élément 204 (facette A5) — texte à saisir par l'administrateur", "205": "Élément 205 (facette C5) — texte à saisir par l'administrateur", "206": "Élément 206 (facette N6) — texte à saisir par l'administrateur", "207": "Élément 207 (facette E6) — texte à saisir par l'administrateur", "208": "Élément 208 (facette O6) — texte à saisir par l'administrateur", "209": "Élément 209 (facette A6) — texte à saisir par l'administrateur", "210": "Élément 210 (facette C6) — texte à saisir par l'administrateur", "211": "Élément 211 (facette N1) — texte à saisir par l'administrateur", "212": "Élément 212 (facette E1) — texte à saisir par l'administrateur", "213": "Élément 213 (facette O1) — texte à saisir par l'administrateur", "214": "Élément 214 (facette A1) — texte à saisir par l'administrateur", "215": "Élément 215 (facette C1) — texte à saisir par l'administrateur", "216": "Élément 216 (facette N2) — texte à saisir par l'administrateur", "217": "Élément 217 (facette E2) — texte à saisir par l'administrateur", "218": "Élément 218 (facette O2) — texte à saisir par l'administrateur", "219": "Élément 219 (facette A2) — texte à saisir par l'administrateur", "220": "Élément 220 (facette C2) — texte à saisir par l'administrateur", "221": "Élément 221 (facette N3) — texte à saisir par l'administrateur", "222": "Élément 222 (facette E3) — texte à saisir par l'administrateur", "223": "Élément 223 (facette O3) — texte à saisir par l'administrateur", "224": "Élément 224 (facette A3) — texte à saisir par l'administrateur", "225": "Élément 225 (facette C3) — texte à saisir par l'administrateur", "226": "Élément 226 (facette N4) — texte à saisir par l'administrateur", "227": "Élément 227 (facette E4) — texte à saisir par l'administrateur", "228": "Élément 228 (facette O4) — texte à saisir par l'administrateur", "229": "Élément 229 (facette A4) — texte à saisir par l'administrateur", "230": "Élément 230 (facette C4) — texte à saisir par l'administrateur", "231": "Élément 231 (facette N5) — texte à saisir par l'administrateur", "232": "Élément 232 (facette E5) — texte à saisir par l'administrateur", "233": "Élément 233 (facette O5) — texte à saisir par l'administrateur", "234": "Élément 234 (facette A5) — texte à saisir par l'administrateur", "235": "Élément 235 (facette C5) — texte à saisir par l'administrateur", "236": "Élément 236 (facette N6) — texte à saisir par l'administrateur", "237": "Élément 237 (facette E6) — texte à saisir par l'administrateur", "238": "Élément 238 (facette O6) — texte à saisir par l'administrateur", "239": "Élément 239 (facette A6) — texte à saisir par l'administrateur", "240": "Élément 240 (facette C6) — texte à saisir par l'administrateur"};
+/*ITEM_BANK_END*/
+/*ADMIN_HASH_START*/
+const ADMIN_HASH = "02b02ad2ce5f6089b47e6f7aac3e6dbc4cea02ff269214392ea43df72845b7fa";
+/*ADMIN_HASH_END*/
+
+const BAND_LABELS = ["Très faible","Faible","Moyen","Élevé","Très élevé"];
+const BAND_COLORS = ["#8FA0C4","#9FC2B4","#D8A24A","#C98B4A","#B85C5C"];
+const SCALE_LABELS = ["Pas du tout d'accord","En désaccord","Neutre","D'accord","Tout à fait d'accord"];
+const SCALE_SHORT = ["SD","D","N","A","SA"];
+// Numérotation de la grille de cotation (0 à 4) : DT=0, D=1, N=2, A=3, AT=4 pour un item direct,
+// et inversée (4,3,2,1,0) pour un item à coter en sens inverse — cf. écran de configuration.
+const SCALE_NUM = [0,1,2,3,4];
+const PAGE_SIZE = 30;
+const TOTAL_PAGES = 8;
+
+function facetForItem(n){ return FACET_ORDER[(n-1)%30]; }
+function domainForItem(n){ return facetForItem(n)[0]; }
+function scoreValue(n, idx){ return REVERSED_ITEMS.has(n) ? (4-idx) : idx; }
+function bandIndex(value,max){
+  const p = value/max;
+  if(p<0.2) return 0; if(p<0.4) return 1; if(p<0.6) return 2; if(p<0.8) return 3; return 4;
+}
+
+/* ======================= NAV ======================= */
+const SCREENS = ["role","candidateWelcome","candidateTest","candidateDone","adminLogin","adminDashboard","adminConfig","adminReport"];
+function goTo(name){
+  SCREENS.forEach(s=>document.getElementById("screen-"+s).classList.add("hidden"));
+  document.getElementById("screen-"+name).classList.remove("hidden");
+  const tag = document.getElementById("roleTag");
+  if(name.startsWith("candidate")) tag.textContent = "Candidat";
+  else if(name.startsWith("admin")) tag.textContent = "Administrateur";
+  else tag.textContent = "—";
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+
+/* ======================= CANDIDATE FLOW ======================= */
+let candidateInfo = {};
+let candidateAnswers = {};
+let currentPage = 0;
+
+function startTest(){
+  const nom = document.getElementById("ci-nom").value.trim();
+  const prenom = document.getElementById("ci-prenom").value.trim();
+  const err = document.getElementById("ci-error");
+  if(!nom || !prenom){
+    err.textContent = "Merci de renseigner au moins le nom et le prénom.";
+    err.classList.remove("hidden");
+    return;
+  }
+  err.classList.add("hidden");
+  candidateInfo = {
+    nom, prenom,
+    sexe: document.getElementById("ci-sexe").value,
+    age: document.getElementById("ci-age").value,
+    profession: document.getElementById("ci-profession").value,
+    date: document.getElementById("ci-date").value,
+    examinateur: document.getElementById("ci-examinateur").value,
+    email: document.getElementById("ci-email").value
+  };
+  candidateAnswers = {};
+  currentPage = 0;
+  renderTestPage();
+  goTo("candidateTest");
+}
+
+function renderTestPage(){
+  const start = currentPage*PAGE_SIZE + 1;
+  const end = Math.min(start+PAGE_SIZE-1, 240);
+  let html = "";
+  for(let n=start;n<=end;n++){
+    const text = window.ITEM_BANK[String(n)] || ("Item "+n);
+    html += `<div class="item-row"><div class="item-text"><span class="item-num">${n}.</span>${text}</div><div class="scale" data-item="${n}">`;
+    for(let i=0;i<5;i++){
+      const checked = candidateAnswers[n]===i ? "checked" : "";
+      html += `<label class="${candidateAnswers[n]===i?'checked':''}" onclick="selectAnswer(${n},${i})"><input type="radio" name="item${n}" ${checked}>${SCALE_LABELS[i]}</label>`;
+    }
+    html += `</div></div>`;
+  }
+  document.getElementById("testPageBody").innerHTML = html;
+  document.getElementById("progressLabel").textContent =
+    `Page ${currentPage+1} / ${TOTAL_PAGES} · ${Object.keys(candidateAnswers).length} / 240 réponses`;
+  document.getElementById("progressBar").style.width = (Object.keys(candidateAnswers).length/240*100)+"%";
+  document.getElementById("btnPrevPage").disabled = currentPage===0;
+  document.getElementById("btnNextPage").textContent = currentPage===TOTAL_PAGES-1 ? "Terminer →" : "Suivant →";
+  document.getElementById("test-error").classList.add("hidden");
+}
+
+function selectAnswer(n, idx){
+  candidateAnswers[n] = idx;
+  const group = document.querySelector(`.scale[data-item="${n}"]`);
+  [...group.children].forEach((el,i)=>{
+    el.classList.toggle("checked", i===idx);
+  });
+  document.getElementById("progressLabel").textContent =
+    `Page ${currentPage+1} / ${TOTAL_PAGES} · ${Object.keys(candidateAnswers).length} / 240 réponses`;
+  document.getElementById("progressBar").style.width = (Object.keys(candidateAnswers).length/240*100)+"%";
+}
+
+function changePage(dir){
+  const start = currentPage*PAGE_SIZE+1, end = Math.min(start+PAGE_SIZE-1,240);
+  const err = document.getElementById("test-error");
+  if(dir>0){
+    let missing = [];
+    for(let n=start;n<=end;n++) if(candidateAnswers[n]===undefined) missing.push(n);
+    if(missing.length){
+      err.textContent = "Merci de répondre à tous les items de cette page avant de continuer (manquants : "+missing.join(", ")+").";
+      err.classList.remove("hidden");
+      return;
+    }
+  }
+  err.classList.add("hidden");
+  if(currentPage===TOTAL_PAGES-1 && dir>0){ finishTest(); return; }
+  currentPage = Math.max(0, Math.min(TOTAL_PAGES-1, currentPage+dir));
+  renderTestPage();
+}
+
+function b64EncodeUnicode(str){
+  return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g,(m,p)=>String.fromCharCode('0x'+p)));
+}
+function b64DecodeUnicode(str){
+  return decodeURIComponent(atob(str).split('').map(c=>'%'+('00'+c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+}
+
+let lastResultCode = "";
+function finishTest(){
+  const payload = { v:1, info: candidateInfo, answers: candidateAnswers, exportedAt: new Date().toISOString() };
+  lastResultCode = b64EncodeUnicode(JSON.stringify(payload));
+  document.getElementById("resultCode").textContent = lastResultCode;
+  goTo("candidateDone");
+}
+
+function sendByEmail(){
+  const to = candidateInfo.email || "";
+  const subject = "Résultats NEO PI-R - " + candidateInfo.nom + " " + candidateInfo.prenom;
+  const body = "Code de résultats (à coller dans l'espace administrateur) :\n\n" + lastResultCode;
+  window.location.href = "mailto:"+encodeURIComponent(to)+"?subject="+encodeURIComponent(subject)+"&body="+encodeURIComponent(body);
+}
+function copyCode(){
+  navigator.clipboard.writeText(lastResultCode).then(()=>alert("Code copié dans le presse-papiers."));
+}
+function downloadResults(){
+  const blob = new Blob([lastResultCode], {type:"text/plain"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "neo-pir-resultats-"+(candidateInfo.nom||"candidat")+".txt";
+  a.click(); URL.revokeObjectURL(url);
+}
+
+/* ======================= ADMIN LOGIN ======================= */
+async function sha256Hex(msg){
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(msg));
+  return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+async function tryLogin(){
+  const pwd = document.getElementById("admin-pwd").value;
+  const hash = await sha256Hex(pwd);
+  const err = document.getElementById("admin-login-error");
+  if(hash===ADMIN_HASH){
+    err.classList.add("hidden");
+    renderCandidateList();
+    goTo("adminDashboard");
+  } else {
+    err.classList.remove("hidden");
+  }
+}
+
+/* ======================= ADMIN CONFIG ======================= */
+function parseBulkImport(text){
+  const lines = text.split(/\r?\n/);
+  const items = {};
+  let currentNum = null;
+  let buffer = [];
+  const scaleLineRe = /^(SD|D|N|A|SA|FD|FA|DT|AT)(\s+(SD|D|N|A|SA|FD|FA|DT|AT)){2,}$/i;
+  function flush(){
+    if(currentNum!==null){
+      const txt = buffer.join(' ').replace(/\s+/g,' ').trim();
+      if(txt) items[currentNum] = txt;
+    }
+    buffer = [];
+  }
+  for(const raw of lines){
+    const line = raw.trim();
+    if(!line) continue;
+    const m = line.match(/^(\d{1,3})\\?[\.\)]\s*(.*)$/);
+    if(m && parseInt(m[1],10)>=1 && parseInt(m[1],10)<=240){
+      flush();
+      currentNum = parseInt(m[1],10);
+      buffer = m[2] ? [m[2]] : [];
+    } else if(scaleLineRe.test(line)){
+      continue;
+    } else if(currentNum!==null){
+      buffer.push(line);
+    }
+  }
+  flush();
+  return items;
+}
+
+function bulkImportItems(){
+  const text = document.getElementById("bulkImportArea").value;
+  const parsed = parseBulkImport(text);
+  const parsedCount = Object.keys(parsed).length;
+  const status = document.getElementById("bulk-status");
+  if(parsedCount===0){
+    status.className = "alert error";
+    status.textContent = "Aucun item détecté. Vérifiez que chaque énoncé est bien précédé de son numéro (ex. « 12. Texte de l'item »).";
+    status.classList.remove("hidden");
+    return;
+  }
+  Object.keys(parsed).forEach(numStr=>{
+    window.ITEM_BANK[numStr] = parsed[numStr];
+    const ta = document.querySelector(`#facetGroups textarea[data-item="${numStr}"]`);
+    if(ta) ta.value = parsed[numStr];
+  });
+  const missing = [];
+  for(let n=1;n<=240;n++) if(!parsed[n]) missing.push(n);
+  status.className = missing.length ? "alert warn" : "alert info";
+  status.textContent = missing.length
+    ? `${parsedCount} / 240 items répartis. Numéros non détectés : ${missing.join(", ")}. Vous pouvez les compléter manuellement ci-dessous ou coller à nouveau le passage correspondant.`
+    : `Les 240 items ont été répartis avec succès dans les champs ci-dessous.`;
+  status.classList.remove("hidden");
+}
+
+function renderFacetGroups(){
+  let html = "";
+  FACET_ORDER.filter((v,i,a)=>a.indexOf(v)===i).forEach(code=>{
+    const info = FACET_INFO[code];
+    const items = [];
+    for(let k=0;k<8;k++) items.push(FACET_ORDER.indexOf(code)+1+30*k);
+    html += `<details class="facet-group"><summary>${code} — ${info.name} <span class="mono" style="font-weight:400;color:var(--ink-soft);">${items.length} items</span></summary><div class="facet-body">`;
+    items.forEach(n=>{
+      const rev = REVERSED_ITEMS.has(n);
+      const tag = rev
+        ? `<span class="band-chip" style="background:#B85C5C;" title="Coté en sens inverse : SA=0, A=1, N=2, D=3, SD=4">inversé</span>`
+        : `<span class="band-chip" style="background:#3F9C7A;" title="Coté normalement : SD=0, D=1, N=2, A=3, SA=4">direct</span>`;
+      html += `<div class="field"><label>Item ${n} ${tag}</label><textarea rows="2" data-item="${n}">${(window.ITEM_BANK[String(n)]||"")}</textarea></div>`;
+    });
+    html += `</div></details>`;
+  });
+  document.getElementById("facetGroups").innerHTML = html;
+}
+
+function saveConfig(){
+  document.querySelectorAll("#facetGroups textarea[data-item]").forEach(ta=>{
+    window.ITEM_BANK[ta.getAttribute("data-item")] = ta.value;
+  });
+  const newBankJson = JSON.stringify(window.ITEM_BANK);
+  const newPwd = document.getElementById("cfg-newpwd").value;
+
+  const finish = (hash)=>{
+    let src = "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
+    src = src.replace(/\/\*ITEM_BANK_START\*\/[\s\S]*?\/\*ITEM_BANK_END\*\//,
+      "/*ITEM_BANK_START*/\nwindow.ITEM_BANK = "+newBankJson+";\n/*ITEM_BANK_END*/");
+    if(hash){
+      src = src.replace(/\/\*ADMIN_HASH_START\*\/[\s\S]*?\/\*ADMIN_HASH_END\*\//,
+        '/*ADMIN_HASH_START*/\nconst ADMIN_HASH = "'+hash+'";\n/*ADMIN_HASH_END*/');
+    }
+    const blob = new Blob([src], {type:"text/html"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "neo-pir-questionnaire.html";
+    a.click(); URL.revokeObjectURL(url);
+    const status = document.getElementById("cfg-status");
+    status.classList.remove("hidden");
+    status.textContent = "Configuration enregistrée. Le fichier téléchargé peut être distribué aux candidats.";
+  };
+
+  if(newPwd){ sha256Hex(newPwd).then(finish); } else { finish(null); }
+}
+
+/* ======================= ADMIN IMPORT / DASHBOARD ======================= */
+let candidatesDB = [];
+
+function importFromCode(){
+  const code = document.getElementById("importCodeArea").value.trim();
+  const err = document.getElementById("import-error");
+  try{
+    const payload = JSON.parse(b64DecodeUnicode(code));
+    if(!payload.answers || !payload.info) throw new Error("Format invalide");
+    candidatesDB.push(payload);
+    document.getElementById("importCodeArea").value = "";
+    err.classList.add("hidden");
+    renderCandidateList();
+  }catch(e){
+    err.textContent = "Impossible de lire ce code. Vérifiez qu'il a été copié en entier.";
+    err.classList.remove("hidden");
+  }
+}
+function importFromFile(evt){
+  const file = evt.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    document.getElementById("importCodeArea").value = reader.result.trim();
+    importFromCode();
+  };
+  reader.readAsText(file);
+}
+function exportDB(){
+  const blob = new Blob([JSON.stringify(candidatesDB)], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "neo-pir-base-candidats.json";
+  a.click(); URL.revokeObjectURL(url);
+}
+function importDB(evt){
+  const file = evt.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const arr = JSON.parse(reader.result);
+      if(Array.isArray(arr)) candidatesDB = candidatesDB.concat(arr);
+      renderCandidateList();
+    }catch(e){ alert("Fichier de base invalide."); }
+  };
+  reader.readAsText(file);
+}
+
+function renderCandidateList(){
+  const el = document.getElementById("candidateList");
+  if(!candidatesDB.length){ el.innerHTML = "<p class=\"lede\">Aucun résultat chargé pour l'instant.</p>"; return; }
+  let html = "";
+  candidatesDB.forEach((c,i)=>{
+    const nAnswered = Object.keys(c.answers).length;
+    html += `<div class="candidate-list-item">
+      <div><strong>${c.info.nom||''} ${c.info.prenom||''}</strong>
+      <div class="lede" style="font-size:.82rem;">${nAnswered}/240 réponses · ${c.info.date||'date non renseignée'}</div></div>
+      <button class="btn ghost" onclick="viewReport(${i})">Voir le rapport →</button>
+    </div>`;
+  });
+  el.innerHTML = html;
+}
+
+/* ======================= SCORING & REPORT ======================= */
+function computeResults(answers){
+  const facetRaw = {};
+  FACET_ORDER.filter((v,i,a)=>a.indexOf(v)===i).forEach(f=>facetRaw[f]=0);
+  let answered = 0;
+  const seq = [];
+  for(let n=1;n<=240;n++){
+    const v = answers[n];
+    if(v===undefined || v===null) continue;
+    answered++;
+    seq.push(v);
+    facetRaw[facetForItem(n)] += scoreValue(n, v);
+  }
+  const domainRaw = {N:0,E:0,O:0,A:0,C:0};
+  Object.keys(facetRaw).forEach(f=>{ domainRaw[f[0]] += facetRaw[f]; });
+  // straight-lining check
+  let longestRun = 1, run = 1;
+  for(let i=1;i<seq.length;i++){
+    if(seq[i]===seq[i-1]){ run++; longestRun = Math.max(longestRun,run); } else run=1;
+  }
+  return {facetRaw, domainRaw, answered, longestRun};
+}
+
+function viewReport(i){
+  const c = candidatesDB[i];
+  const res = computeResults(c.answers);
+  renderReport(c.info, res);
+  goTo("adminReport");
+}
+
+function renderReport(info, res){
+  const uniqueFacets = FACET_ORDER.filter((v,idx,a)=>a.indexOf(v)===idx);
+  let html = `
+    <div class="nav-row no-print" style="margin-bottom:18px;">
+      <button class="btn secondary" onclick="goTo('adminDashboard')">← Retour au tableau de bord</button>
+      <button class="btn" onclick="window.print()">Imprimer / Exporter en PDF</button>
+    </div>
+    <h2>Rapport NEO PI-R</h2>
+    <p class="lede"><strong>${info.nom||''} ${info.prenom||''}</strong> · ${info.sexe||'—'} · ${info.age?info.age+' ans':'âge non renseigné'} · ${info.profession||''}<br>
+    Examinateur : ${info.examinateur||'—'} · Passation : ${info.date||'—'}</p>
+  `;
+
+  if(res.answered<240){
+    html += `<div class="alert warn">Attention : ${240-res.answered} item(s) sans réponse. Les scores ci-dessous sont calculés uniquement sur les items renseignés et doivent être interprétés avec prudence.</div>`;
+  }
+  if(res.longestRun>=20){
+    html += `<div class="alert warn">Une série de ${res.longestRun} réponses identiques consécutives a été détectée : la validité des réponses (attention portée au questionnaire) devrait être vérifiée avant interprétation.</div>`;
+  }
+
+  html += `<div class="alert info">Les scores bruts sont classés ici selon des seuils indicatifs (quintiles de l'échelle), <strong>et non selon un étalonnage normatif officiel</strong> (notes T par sexe). Pour une interprétation normée, reportez ces scores bruts sur la feuille de profil officielle du NEO PI-R.</div>`;
+
+  html += `<h3>Profil des 5 dimensions</h3><canvas id="domainChart" height="120"></canvas>`;
+  html += `<table class="report-table" style="margin-top:16px;"><thead><tr><th>Dimension</th><th>Score brut (/192)</th><th>Niveau</th></tr></thead><tbody>`;
+  ["N","E","O","A","C"].forEach(d=>{
+    const b = bandIndex(res.domainRaw[d],192);
+    html += `<tr><td>${DOMAIN_INFO[d].name} (${d})</td><td class="mono">${res.domainRaw[d]}</td><td><span class="band-chip" style="background:${BAND_COLORS[b]}">${BAND_LABELS[b]}</span></td></tr>`;
+  });
+  html += `</tbody></table>`;
+
+  html += `<h3 style="margin-top:28px;">Profil des 30 facettes</h3><canvas id="facetChart" height="140"></canvas>`;
+
+  html += `<h3 style="margin-top:28px;">Synthèse par dimension</h3>`;
+  ["N","E","O","A","C"].forEach(d=>{
+    const b = bandIndex(res.domainRaw[d],192);
+    html += `<div class="domain-block">
+      <div class="domain-title-row"><span class="domain-dot" style="background:${DOMAIN_INFO[d].color}"></span><h4>${DOMAIN_INFO[d].name}</h4><span class="band-chip" style="background:${BAND_COLORS[b]}">${BAND_LABELS[b]}</span></div>
+      <p>${DOMAIN_TEXT[d][b]}</p>
+      <table class="report-table"><thead><tr><th>Facette</th><th>Score (/32)</th><th>Niveau</th><th>Tendance</th></tr></thead><tbody>`;
+    uniqueFacets.filter(f=>f[0]===d).forEach(f=>{
+      const fb = bandIndex(res.facetRaw[f],32);
+      const info2 = FACET_INFO[f];
+      let tendance;
+      if(fb<=1) tendance = info2.low;
+      else if(fb>=3) tendance = info2.high;
+      else tendance = info2.low + " ↔ " + info2.high;
+      html += `<tr><td>${f} ${info2.name}</td><td class="mono">${res.facetRaw[f]}</td><td><span class="band-chip" style="background:${BAND_COLORS[fb]}">${BAND_LABELS[fb]}</span></td><td>${tendance}</td></tr>`;
+    });
+    html += `</tbody></table></div>`;
+  });
+
+  html += `<h3 style="margin-top:10px;">Synthèse globale</h3><p>`;
+  html += ["N","E","O","A","C"].map(d=>DOMAIN_TEXT[d][bandIndex(res.domainRaw[d],192)]).join(" ");
+  html += `</p>`;
+
+  document.getElementById("reportContent").innerHTML = html;
+
+  const domainCtx = document.getElementById("domainChart").getContext("2d");
+  new Chart(domainCtx, {
+    type:"bar",
+    data:{ labels:["N","E","O","A","C"],
+      datasets:[{ data:["N","E","O","A","C"].map(d=>res.domainRaw[d]),
+        backgroundColor:["N","E","O","A","C"].map(d=>DOMAIN_INFO[d].color), borderRadius:6 }]},
+    options:{ plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true, max:192 } } }
+  });
+
+  const facetCtx = document.getElementById("facetChart").getContext("2d");
+  new Chart(facetCtx, {
+    type:"bar",
+    data:{ labels: uniqueFacets,
+      datasets:[{ data: uniqueFacets.map(f=>res.facetRaw[f]),
+        backgroundColor: uniqueFacets.map(f=>DOMAIN_INFO[f[0]].color), borderRadius:4 }]},
+    options:{ plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true, max:32 } } }
+  });
+}
+
+/* ======================= INIT ======================= */
+renderFacetGroups();
+goTo("role");
+</script>
+</body>
+</html>
