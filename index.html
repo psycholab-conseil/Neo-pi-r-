@@ -6,6 +6,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&amp;family=Inter:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   :root{
     --ink:#232C4B;
@@ -185,19 +187,15 @@
 <!-- ============ CANDIDATE: DONE ============ -->
 <section id="screen-candidateDone" class="card hidden">
   <h2>Merci, vos réponses sont enregistrées</h2>
-  <p class="lede">Envoyez ce code à votre examinateur pour qu'il puisse l'analyser, ou téléchargez le fichier de résultats.</p>
-  <div class="code-box mono" id="resultCode"></div>
-  <div class="nav-row" style="justify-content:flex-start; gap:10px; flex-wrap:wrap;">
-    <button class="btn" id="btnMailto" onclick="sendByEmail()">Envoyer par e-mail</button>
-    <button class="btn secondary" onclick="copyCode()">Copier le code</button>
-    <button class="btn secondary" onclick="downloadResults()">Télécharger le fichier</button>
+  <p class="lede">Cliquez ci-dessous pour envoyer vos résultats à l'examinateur. Un fichier de rapport sera téléchargé automatiquement : joignez-le simplement au message qui s'ouvre dans votre messagerie avant de l'envoyer.</p>
+  <div class="nav-row" style="justify-content:flex-start;">
+    <button class="btn" id="btnMailto" onclick="sendResultsFlow()">Envoyer mes réponses par e-mail</button>
   </div>
 </section>
 
 <!-- ============ ADMIN: LOGIN ============ -->
 <section id="screen-adminLogin" class="card hidden">
   <h2>Accès administrateur</h2>
-  <p class="lede">Cet accès est protégé par mot de passe. Il ne s'agit pas d'un chiffrement fort : ce fichier étant autonome (sans serveur), toute personne ayant accès au code source peut potentiellement le contourner. Ne l'utilisez pas pour des données hautement sensibles sans mesures complémentaires.</p>
   <div class="field"><label>Mot de passe</label><input id="admin-pwd" type="password" onkeydown="if(event.key==='Enter')tryLogin()"></div>
   <div id="admin-login-error" class="alert error hidden">Mot de passe incorrect.</div>
   <div class="nav-row">
@@ -402,28 +400,59 @@ function b64DecodeUnicode(str){
 }
 
 let lastResultCode = "";
+let lastReportDoc = "";
+let lastPlainSummary = "";
+
+function buildPlainTextSummary(info, res){
+  const lines = [];
+  lines.push("RÉSULTATS NEO PI-R");
+  lines.push(`${info.nom||''} ${info.prenom||''} · ${info.sexe||'—'} · ${info.age?info.age+' ans':''} · ${info.profession||''}`);
+  lines.push(`Passation : ${info.date||'—'} · Examinateur : ${info.examinateur||'—'}`);
+  lines.push("");
+  if(res.answered<240) lines.push(`Attention : ${240-res.answered} item(s) sans réponse.`);
+  lines.push("Scores par dimension (sur 192, seuils indicatifs) :");
+  ["N","E","O","A","C"].forEach(d=>{
+    const b = bandIndex(res.domainRaw[d],192);
+    lines.push(`- ${DOMAIN_INFO[d].name} : ${res.domainRaw[d]}/192 (${BAND_LABELS[b]})`);
+  });
+  lines.push("");
+  lines.push("Synthèse globale :");
+  lines.push(["N","E","O","A","C"].map(d=>DOMAIN_TEXT[d][bandIndex(res.domainRaw[d],192)]).join(" "));
+  lines.push("");
+  lines.push("Le rapport complet avec graphiques et détail des 30 facettes est joint en pièce jointe (fichier HTML à ouvrir dans un navigateur).");
+  return lines.join("\n");
+}
+
 function finishTest(){
   const payload = { v:1, info: candidateInfo, answers: candidateAnswers, exportedAt: new Date().toISOString() };
   lastResultCode = b64EncodeUnicode(JSON.stringify(payload));
-  document.getElementById("resultCode").textContent = lastResultCode;
+  const res = computeResults(candidateAnswers);
+  lastReportDoc = buildStandaloneReportDoc(candidateInfo, res);
+  lastPlainSummary = buildPlainTextSummary(candidateInfo, res);
   goTo("candidateDone");
 }
 
-function sendByEmail(){
-  const to = candidateInfo.email || "";
-  const subject = "Résultats NEO PI-R - " + candidateInfo.nom + " " + candidateInfo.prenom;
-  const body = "Code de résultats (à coller dans l'espace administrateur) :\n\n" + lastResultCode;
-  window.location.href = "mailto:"+encodeURIComponent(to)+"?subject="+encodeURIComponent(subject)+"&body="+encodeURIComponent(body);
-}
-function copyCode(){
-  navigator.clipboard.writeText(lastResultCode).then(()=>alert("Code copié dans le presse-papiers."));
-}
-function downloadResults(){
-  const blob = new Blob([lastResultCode], {type:"text/plain"});
+function downloadReport(){
+  const blob = new Blob([lastReportDoc], {type:"text/html"});
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url; a.download = "neo-pir-resultats-"+(candidateInfo.nom||"candidat")+".txt";
+  a.href = url; a.download = "rapport-neo-pir-"+(candidateInfo.nom||"candidat")+".html";
   a.click(); URL.revokeObjectURL(url);
+}
+
+function sendResultsFlow(){
+  // 1. Télécharge automatiquement le rapport complet (avec graphiques) que le candidat n'a plus qu'à joindre.
+  downloadReport();
+  // 2. Ouvre le client e-mail avec un résumé texte lisible ; le code technique de ré-import est inclus
+  //    discrètement pour l'administrateur, mais n'est jamais affiché à l'écran pour le candidat.
+  const to = candidateInfo.email || "";
+  const subject = "Résultats NEO PI-R - " + candidateInfo.nom + " " + candidateInfo.prenom;
+  const body = lastPlainSummary
+    + "\n\n(Merci de joindre à cet e-mail le fichier de rapport qui vient d'être téléchargé sur cet appareil.)"
+    + "\n\n---\nCode technique de ré-import (réservé à l'usage administrateur) :\n" + lastResultCode;
+  setTimeout(()=>{
+    window.location.href = "mailto:"+encodeURIComponent(to)+"?subject="+encodeURIComponent(subject)+"&body="+encodeURIComponent(body);
+  }, 300);
 }
 
 /* ======================= ADMIN LOGIN ======================= */
@@ -600,15 +629,26 @@ function importDB(evt){
 function renderCandidateList(){
   const el = document.getElementById("candidateList");
   if(!candidatesDB.length){ el.innerHTML = "<p class=\"lede\">Aucun résultat chargé pour l'instant.</p>"; return; }
-  let html = "";
+  let html = `<div style="overflow-x:auto;"><table class="report-table"><thead><tr>
+    <th>Nom</th><th>Prénom</th><th>Sexe</th><th>Âge</th><th>Profession</th><th>E-mail</th><th>Examinateur</th><th>Passation</th><th>Réponses</th><th></th>
+  </tr></thead><tbody>`;
   candidatesDB.forEach((c,i)=>{
     const nAnswered = Object.keys(c.answers).length;
-    html += `<div class="candidate-list-item">
-      <div><strong>${c.info.nom||''} ${c.info.prenom||''}</strong>
-      <div class="lede" style="font-size:.82rem;">${nAnswered}/240 réponses · ${c.info.date||'date non renseignée'}</div></div>
-      <button class="btn ghost" onclick="viewReport(${i})">Voir le rapport →</button>
-    </div>`;
+    const info = c.info || {};
+    html += `<tr>
+      <td>${info.nom||''}</td>
+      <td>${info.prenom||''}</td>
+      <td>${info.sexe||'—'}</td>
+      <td>${info.age||'—'}</td>
+      <td>${info.profession||'—'}</td>
+      <td>${info.email||'—'}</td>
+      <td>${info.examinateur||'—'}</td>
+      <td>${info.date||'—'}</td>
+      <td class="mono">${nAnswered}/240</td>
+      <td><button class="btn ghost" onclick="viewReport(${i})">Voir le rapport →</button></td>
+    </tr>`;
   });
+  html += `</tbody></table></div>`;
   el.innerHTML = html;
 }
 
@@ -642,27 +682,20 @@ function viewReport(i){
   goTo("adminReport");
 }
 
-function renderReport(info, res){
+function buildReportBodyHTML(info, res){
   const uniqueFacets = FACET_ORDER.filter((v,idx,a)=>a.indexOf(v)===idx);
   let html = `
-    <div class="nav-row no-print" style="margin-bottom:18px;">
-      <button class="btn secondary" onclick="goTo('adminDashboard')">← Retour au tableau de bord</button>
-      <button class="btn" onclick="window.print()">Imprimer / Exporter en PDF</button>
-    </div>
     <h2>Rapport NEO PI-R</h2>
     <p class="lede"><strong>${info.nom||''} ${info.prenom||''}</strong> · ${info.sexe||'—'} · ${info.age?info.age+' ans':'âge non renseigné'} · ${info.profession||''}<br>
     Examinateur : ${info.examinateur||'—'} · Passation : ${info.date||'—'}</p>
   `;
-
   if(res.answered<240){
     html += `<div class="alert warn">Attention : ${240-res.answered} item(s) sans réponse. Les scores ci-dessous sont calculés uniquement sur les items renseignés et doivent être interprétés avec prudence.</div>`;
   }
   if(res.longestRun>=20){
     html += `<div class="alert warn">Une série de ${res.longestRun} réponses identiques consécutives a été détectée : la validité des réponses (attention portée au questionnaire) devrait être vérifiée avant interprétation.</div>`;
   }
-
   html += `<div class="alert info">Les scores bruts sont classés ici selon des seuils indicatifs (quintiles de l'échelle), <strong>et non selon un étalonnage normatif officiel</strong> (notes T par sexe). Pour une interprétation normée, reportez ces scores bruts sur la feuille de profil officielle du NEO PI-R.</div>`;
-
   html += `<h3>Profil des 5 dimensions</h3><canvas id="domainChart" height="120"></canvas>`;
   html += `<table class="report-table" style="margin-top:16px;"><thead><tr><th>Dimension</th><th>Score brut (/192)</th><th>Niveau</th></tr></thead><tbody>`;
   ["N","E","O","A","C"].forEach(d=>{
@@ -670,9 +703,7 @@ function renderReport(info, res){
     html += `<tr><td>${DOMAIN_INFO[d].name} (${d})</td><td class="mono">${res.domainRaw[d]}</td><td><span class="band-chip" style="background:${BAND_COLORS[b]}">${BAND_LABELS[b]}</span></td></tr>`;
   });
   html += `</tbody></table>`;
-
   html += `<h3 style="margin-top:28px;">Profil des 30 facettes</h3><canvas id="facetChart" height="140"></canvas>`;
-
   html += `<h3 style="margin-top:28px;">Synthèse par dimension</h3>`;
   ["N","E","O","A","C"].forEach(d=>{
     const b = bandIndex(res.domainRaw[d],192);
@@ -691,13 +722,14 @@ function renderReport(info, res){
     });
     html += `</tbody></table></div>`;
   });
-
   html += `<h3 style="margin-top:10px;">Synthèse globale</h3><p>`;
   html += ["N","E","O","A","C"].map(d=>DOMAIN_TEXT[d][bandIndex(res.domainRaw[d],192)]).join(" ");
   html += `</p>`;
+  return html;
+}
 
-  document.getElementById("reportContent").innerHTML = html;
-
+function createReportCharts(res){
+  const uniqueFacets = FACET_ORDER.filter((v,idx,a)=>a.indexOf(v)===idx);
   const domainCtx = document.getElementById("domainChart").getContext("2d");
   new Chart(domainCtx, {
     type:"bar",
@@ -706,7 +738,6 @@ function renderReport(info, res){
         backgroundColor:["N","E","O","A","C"].map(d=>DOMAIN_INFO[d].color), borderRadius:6 }]},
     options:{ plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true, max:192 } } }
   });
-
   const facetCtx = document.getElementById("facetChart").getContext("2d");
   new Chart(facetCtx, {
     type:"bar",
@@ -715,6 +746,96 @@ function renderReport(info, res){
         backgroundColor: uniqueFacets.map(f=>DOMAIN_INFO[f[0]].color), borderRadius:4 }]},
     options:{ plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true, max:32 } } }
   });
+}
+
+let currentReportInfo = null;
+function renderReport(info, res){
+  currentReportInfo = info;
+  const nav = `
+    <div class="nav-row no-print" style="margin-bottom:18px;">
+      <button class="btn secondary" onclick="goTo('adminDashboard')">← Retour au tableau de bord</button>
+      <button class="btn" onclick="downloadReportPDF(event)">Télécharger en PDF</button>
+      <button class="btn secondary" onclick="window.print()">Imprimer</button>
+    </div>`;
+  document.getElementById("reportContent").innerHTML = nav + '<div id="reportPrintArea">' + buildReportBodyHTML(info, res) + '</div>';
+  createReportCharts(res);
+}
+
+async function downloadReportPDF(evt){
+  const el = document.getElementById("reportPrintArea");
+  const btn = evt.target;
+  const originalText = btn.textContent;
+  btn.textContent = "Génération du PDF…";
+  btn.disabled = true;
+  try{
+    const canvas = await html2canvas(el, { scale: 2, backgroundColor: "#ffffff" });
+    const imgData = canvas.toDataURL("image/png");
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF("p", "mm", "a4");
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = pageWidth;
+    const imgHeight = canvas.height * imgWidth / canvas.width;
+    let heightLeft = imgHeight;
+    let position = 0;
+    pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+    heightLeft -= pageHeight;
+    while(heightLeft > 0){
+      position = heightLeft - imgHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+    }
+    const name = currentReportInfo ? (currentReportInfo.nom||"candidat") : "candidat";
+    pdf.save("rapport-neo-pir-"+name+".pdf");
+  }catch(e){
+    alert("La génération du PDF a échoué : "+e.message);
+  }finally{
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
+}
+
+function buildStandaloneReportDoc(info, res){
+  const body = buildReportBodyHTML(info, res);
+  const uniqueFacets = FACET_ORDER.filter((v,idx,a)=>a.indexOf(v)===idx);
+  const domainData = JSON.stringify(["N","E","O","A","C"].map(d=>res.domainRaw[d]));
+  const domainColors = JSON.stringify(["N","E","O","A","C"].map(d=>DOMAIN_INFO[d].color));
+  const facetLabels = JSON.stringify(uniqueFacets);
+  const facetData = JSON.stringify(uniqueFacets.map(f=>res.facetRaw[f]));
+  const facetColors = JSON.stringify(uniqueFacets.map(f=>DOMAIN_INFO[f[0]].color));
+  return `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
+<title>Rapport NEO PI-R — ${(info.nom||'')} ${(info.prenom||'')}</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"><\/script>
+<style>
+  body{ margin:0; background:#EEF1EE; color:#232C4B; font-family:'Inter',sans-serif; line-height:1.55; }
+  .mono{ font-family:'IBM Plex Mono',monospace; }
+  h1,h2,h3,h4{ font-family:'Fraunces',serif; font-weight:600; color:#232C4B; margin:0 0 .4em; }
+  main{ max-width:900px; margin:0 auto; padding:32px 20px 80px; }
+  .card{ background:#fff; border-radius:12px; padding:28px 32px; box-shadow:0 8px 24px rgba(35,44,75,.06); border:1px solid #DADFE0; }
+  .lede{ color:#4A5578; font-size:.98rem; }
+  .alert{ border-radius:8px; padding:12px 16px; font-size:.88rem; margin-bottom:16px; }
+  .alert.info{ background:#EAF2F0; color:#2A574C; border:1px solid #CFE3DC; }
+  .alert.warn{ background:#FBF2E4; color:#8A5A16; border:1px solid #F0DDB6; }
+  table.report-table{ width:100%; border-collapse:collapse; font-size:.86rem; }
+  table.report-table th, table.report-table td{ text-align:left; padding:8px 10px; border-bottom:1px solid #DADFE0; }
+  table.report-table th{ font-family:'IBM Plex Mono',monospace; font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:#4A5578; }
+  .band-chip{ display:inline-block; padding:2px 9px; border-radius:20px; font-size:.72rem; font-weight:600; color:#fff; }
+  .domain-block{ margin-bottom:34px; }
+  .domain-title-row{ display:flex; align-items:baseline; gap:10px; margin-bottom:6px; }
+  .domain-dot{ width:12px; height:12px; border-radius:50%; display:inline-block; }
+  canvas{ max-width:100%; }
+  @media print{ body{ background:#fff; } .card{ box-shadow:none; border:none; } }
+</style></head>
+<body><main><div class="card">${body}</div></main>
+<script>
+  const ctx1=document.getElementById('domainChart').getContext('2d');
+  new Chart(ctx1,{type:'bar',data:{labels:['N','E','O','A','C'],datasets:[{data:${domainData},backgroundColor:${domainColors},borderRadius:6}]},options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,max:192}}}});
+  const ctx2=document.getElementById('facetChart').getContext('2d');
+  new Chart(ctx2,{type:'bar',data:{labels:${facetLabels},datasets:[{data:${facetData},backgroundColor:${facetColors},borderRadius:4}]},options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,max:32}}}});
+<\/script>
+</body></html>`;
 }
 
 /* ======================= INIT ======================= */
